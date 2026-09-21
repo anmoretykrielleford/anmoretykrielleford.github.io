@@ -183,8 +183,8 @@
           const key = `ex_${exIdx}_set_${s}`;
           const savedData = JSON.parse(localStorage.getItem(key) || '{"kg":"","reps":"","done":false}');
 
-          // Sintassi Intent Android con nomi di sistema ufficiali
-          const intentUrl = `intent:#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=${ex.rest};S.android.intent.extra.alarm.MESSAGE=Recupero%20Palestra;b.android.intent.extra.alarm.SKIP_UI=false;end`;
+          // Intent specifico per Google Orologio (com.google.android.deskclock) su Pixel
+          const intentUrl = `intent:#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=${ex.rest};S.android.intent.extra.alarm.MESSAGE=Recupero%20Palestra;b.android.intent.extra.alarm.SKIP_UI=false;package=com.google.android.deskclock;end`;
 
           const row = document.createElement('div');
           row.className = 'set-row';
