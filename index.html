@@ -183,15 +183,18 @@
           const key = `ex_${exIdx}_set_${s}`;
           const savedData = JSON.parse(localStorage.getItem(key) || '{"kg":"","reps":"","done":false}');
 
+          // Link diretto Intent per l'app Orologio Android
+          const intentUrl = `intent:#Intent;action=android.intent.action.SET_TIMER;i.EXTRA_LENGTH=${ex.rest};S.EXTRA_MESSAGE=Recupero%20Palestra;b.EXTRA_SKIP_UI=false;end`;
+
           const row = document.createElement('div');
           row.className = 'set-row';
           row.innerHTML = `
             <span class="set-num">S${s}</span>
             <input type="number" id="input_kg_${exIdx}_${s}" placeholder="kg" value="${savedData.kg}" onchange="saveSet(${exIdx}, ${s}, 'kg', this.value)">
             <input type="number" placeholder="reps" value="${savedData.reps}" onchange="saveSet(${exIdx}, ${s}, 'reps', this.value)">
-            <button class="btn-check ${savedData.done ? 'done' : ''}" onclick="toggleDone(${exIdx}, ${s}, ${ex.rest}, this)">
+            <a href="${intentUrl}" id="btn_check_${exIdx}_${s}" class="btn-check ${savedData.done ? 'done' : ''}" onclick="handleCheckClick(event, ${exIdx}, ${s}, ${ex.rest})">
               ${savedData.done ? '✓ Fatto' : 'Completa'}
-            </button>
+            </a>
           `;
           card.appendChild(row);
         }
@@ -213,37 +216,36 @@
 
     function saveNotes(exIdx, val) { localStorage.setItem(`ex_${exIdx}_notes`, val); }
 
-    function openPhoneTimer(seconds) {
-      // Intent nativo per l'app Orologio Android / Pixel
-      try {
-        const intentUrl = `intent:#Intent;action=android.intent.action.SET_TIMER;i.EXTRA_LENGTH=${seconds};S.EXTRA_MESSAGE=Recupero%20Palestra;b.EXTRA_SKIP_UI=false;end`;
-        window.location.href = intentUrl;
-      } catch (err) {
-        console.log("Errore apertura intent:", err);
-      }
-    }
-
-    function toggleDone(exIdx, setNum, restTime, btn) {
+    function handleCheckClick(event, exIdx, setNum, restTime) {
       startWorkoutTimer();
 
       const key = `ex_${exIdx}_set_${setNum}`;
       const savedData = JSON.parse(localStorage.getItem(key) || '{"kg":"","reps":"","done":false}');
-      savedData.done = !savedData.done;
-      localStorage.setItem(key, JSON.stringify(savedData));
 
       if (savedData.done) {
-        btn.classList.add('done');
-        btn.innerText = '✓ Fatto';
+        // Se era già fatta e ci riclicchi, blocchiamo l'apertura dell'Orologio
+        event.preventDefault();
+        savedData.done = false;
+        localStorage.setItem(key, JSON.stringify(savedData));
         
-        // 1. Apri l'app Orologio nativa del telefono
-        openPhoneTimer(restTime);
-        
-        // 2. Avvia anche il timer di riserva in-page
-        startVisualTimer(restTime);
-      } else {
-        btn.classList.remove('done');
-        btn.innerText = 'Completa';
+        const btn = document.getElementById(`btn_check_${exIdx}_${setNum}`);
+        if (btn) {
+          btn.classList.remove('done');
+          btn.innerText = 'Completa';
+        }
         stopTimer();
+      } else {
+        // Se non era fatta, la segniamo fatta e LASCIAMO APRIRE l'app Orologio via href nativo
+        savedData.done = true;
+        localStorage.setItem(key, JSON.stringify(savedData));
+        
+        startVisualTimer(restTime);
+
+        const btn = document.getElementById(`btn_check_${exIdx}_${setNum}`);
+        if (btn) {
+          btn.classList.add('done');
+          btn.innerText = '✓ Fatto';
+        }
       }
     }
 
