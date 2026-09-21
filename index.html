@@ -112,14 +112,14 @@
 
   <script>
     const exercises = [
-      { name: "1. Leg Press", sets: 4, targetReps: 10, target: "8-10 reps", rest: 180 },
-      { name: "2. Chest Press", sets: 4, targetReps: 10, target: "8-10 reps", rest: 180 },
-      { name: "3. Lat Machine Avanti", sets: 4, targetReps: 10, target: "8-10 reps", rest: 120 },
-      { name: "4. Leg Curl", sets: 3, targetReps: 10, target: "8-10 reps", rest: 120 },
-      { name: "5. Pulley Basso", sets: 3, targetReps: 10, target: "8-10 reps", rest: 90 },
-      { name: "6. Lento Avanti", sets: 3, targetReps: 10, target: "8-10 reps", rest: 120 },
-      { name: "7. Alzate Laterali (Opz.)", sets: 3, targetReps: 15, target: "12-15 reps", rest: 60 },
-      { name: "8. Superset Bicipiti/Tricipiti", sets: 3, targetReps: 12, target: "10-12 reps", rest: 60 }
+      { name: "1. Leg Press", sets: 4, targetReps: 10, target: "8-10 reps", rest: 7 },
+      { name: "2. Chest Press", sets: 4, targetReps: 10, target: "8-10 reps", rest: 7 },
+      { name: "3. Lat Machine Avanti", sets: 4, targetReps: 10, target: "8-10 reps", rest: 7 },
+      { name: "4. Leg Curl", sets: 3, targetReps: 10, target: "8-10 reps", rest: 7 },
+      { name: "5. Pulley Basso", sets: 3, targetReps: 10, target: "8-10 reps", rest: 7 },
+      { name: "6. Lento Avanti", sets: 3, targetReps: 10, target: "8-10 reps", rest: 7 },
+      { name: "7. Alzate Laterali (Opz.)", sets: 3, targetReps: 15, target: "12-15 reps", rest: 7 },
+      { name: "8. Superset Bicipiti/Tricipiti", sets: 3, targetReps: 12, target: "10-12 reps", rest: 7 }
     ];
 
     let swRegistration = null;
@@ -145,8 +145,12 @@
     }
 
     function requestNotificationPermission() {
-      if ('Notification' in window && Notification.permission !== 'granted') {
-        Notification.permission !== 'denied' && Notification.requestPermission();
+      if ('Notification' in window) {
+        if (Notification.permission === 'default') {
+          Notification.requestPermission().then(permission => {
+            console.log("Notification permission state:", permission);
+          });
+        }
       }
     }
 
@@ -259,6 +263,7 @@
 
     function startVisualTimer(seconds) {
       stopTimer();
+      requestNotificationPermission();
       timerEndTime = Date.now() + (seconds * 1000);
       timeLeft = seconds;
       document.getElementById('timer-bar').style.display = 'flex';
@@ -281,6 +286,9 @@
     function updateRemainingFromEndTime() {
       const diff = Math.ceil((timerEndTime - Date.now()) / 1000);
       if (diff <= 0) {
+        if ('vibrate' in navigator) {
+          try { navigator.vibrate([500, 250, 500, 250, 500]); } catch(e) {}
+        }
         stopTimer();
       } else {
         timeLeft = diff;

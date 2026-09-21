@@ -25,7 +25,7 @@ self.addEventListener('message', (event) => {
         tag: "workout-timer",
         renotify: true,
         requireInteraction: true
-      });
+      }).catch(err => console.error("Errore notifica SW:", err));
       timerId = null;
     }, delayMs);
   } 
