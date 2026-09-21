@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scheda Palestra AMOLED</title>
+  <style>
+    :root {
+      --bg: #000000;
+      --card: #0c0c0c;
+      --accent: #00e676;
+      --text: #ffffff;
+      --text-sub: #888888;
+      --border: #222222;
+      --danger: #ff5252;
+      --accent-orange: #ff9800;
+      --input-bg: #161616;
+    }
+    body.light-mode {
+      --bg: #f4f5f7;
+      --card: #ffffff;
+      --text: #111111;
+      --text-sub: #555555;
+      --border: #cccccc;
+      --input-bg: #eeeeee;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 14px; padding-bottom: 120px; transition: background 0.3s, color 0.3s; }
+    
+    .stats-bar { margin-bottom: 12px; }
+    .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; text-align: center; }
+    .stat-label { font-size: 0.75rem; color: var(--text-sub); text-transform: uppercase; }
+    .stat-val { font-size: 1.2rem; font-weight: bold; color: var(--accent); font-family: monospace; }
+
+    .top-tools { display: flex; justify-content: space-between; align-items: center; background: var(--card); padding: 8px 12px; border-radius: 8px; margin-bottom: 14px; border: 1px solid var(--border); font-size: 0.8rem; gap: 6px; flex-wrap: wrap; }
+    .tool-btn { background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 0.88rem; cursor: pointer; flex: 1; text-align: center; white-space: nowrap; font-weight: bold; }
+    .tool-btn-start { background: var(--accent); color: #000; border-color: var(--accent); }
+
+    .ex-card { background: var(--card); border-radius: 12px; padding: 14px; margin-bottom: 14px; border: 1px solid var(--border); }
+    .ex-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+    .ex-title { font-size: 1rem; font-weight: bold; }
+    .ex-target { font-size: 0.8rem; color: var(--accent); font-weight: bold; }
+    .ex-sub { font-size: 0.78rem; color: var(--text-sub); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px; }
+    
+    .badge-prog { background: rgba(255, 152, 0, 0.15); color: var(--accent-orange); border: 1px solid var(--accent-orange); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; }
+
+    .set-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+    .set-num { width: 20px; font-weight: bold; font-size: 0.8rem; color: var(--text-sub); }
+    input[type="number"], input[type="text"] { background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 8px; border-radius: 6px; text-align: center; font-size: 0.85rem; }
+    input[type="number"] { width: 50px; }
+    .notes-input { width: 100%; box-sizing: border-box; text-align: left !important; margin-top: 6px; font-size: 0.78rem !important; }
+    
+    .btn-check { display: inline-block; text-decoration: none; text-align: center; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 8px; border-radius: 6px; cursor: pointer; flex-grow: 1; font-weight: bold; font-size: 0.8rem; box-sizing: border-box; }
+    .btn-check.done { background: var(--accent); color: #000; border-color: var(--accent); }
+    
+    .btn-finish { width: 100%; background: #000; border: 1px solid var(--accent); color: var(--accent); padding: 14px; border-radius: 10px; font-size: 1rem; font-weight: bold; margin-top: 14px; cursor: pointer; }
+    body.light-mode .btn-finish { background: #ffffff; }
+    .backup-row { display: flex; gap: 8px; margin-top: 10px; }
+    .btn-sec { flex: 1; background: var(--card); border: 1px solid var(--border); color: var(--text-sub); padding: 8px; border-radius: 8px; font-size: 0.75rem; cursor: pointer; }
+
+    #timer-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #000000; border-top: 2px solid var(--accent); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 -4px 12px rgba(0,0,0,0.9); z-index: 100; }
+    .timer-val { font-size: 1.3rem; font-weight: bold; color: var(--accent); font-family: monospace; }
+    .timer-btn { background: #161616; color: #fff; border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; font-weight: bold; }
+
+    .modal-bg { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 200; justify-content: center; align-items: center; }
+    .modal-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; width: 80%; max-width: 320px; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <h1>🏋️ Full Body AMOLED</h1>
+
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-label">⏱️ Durata Allenamento</div>
+      <div id="workout-elapsed" class="stat-val">00:00</div>
+    </div>
+  </div>
+
+  <div class="top-tools">
+    <button id="btn-start-workout" class="tool-btn tool-btn-start" onclick="manualStartWorkout()">▶️ Avvia Allenamento</button>
+    <button class="tool-btn" onclick="toggleTheme()">🖤 / ☀️</button>
+    <button class="tool-btn" onclick="requestWakeLock()">💡 Schermo Attivo</button>
+  </div>
+
+  <div id="workout-container"></div>
+
+  <button class="btn-finish" onclick="finishWorkout()">✅ Concludi e Salva Sessione</button>
+
+  <div class="backup-row">
+    <button class="btn-sec" onclick="exportData()">💾 Backup</button>
+    <button class="btn-sec" onclick="importData()">📂 Ripristina</button>
+  </div>
+
+  <div id="timer-bar" style="display: none;">
+    <div>
+      <span style="font-size:0.7rem; color:#aaa; display:block;">RECUPERO IN CORSO</span>
+      <span id="timer-display" class="timer-val">00:00</span>
+    </div>
+    <div style="display:flex; gap:6px;">
+      <button class="timer-btn" onclick="addTime(30)">+30s</button>
+      <button class="timer-btn" style="background:var(--danger); border:none;" onclick="stopTimer()">Salta</button>
+    </div>
+  </div>
+
+  <div id="plate-modal" class="modal-bg" onclick="closeModal()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <h3 style="margin-top:0;">⚖️ Carico per Lato</h3>
+      <div id="plate-results" style="font-size:1.1rem; margin:16px 0; font-family:monospace; color:var(--accent);"></div>
+      <button class="tool-btn" style="width:100%;" onclick="closeModal()">Chiudi</button>
+    </div>
+  </div>
+
+  <script>
+    const exercises = [
+      { name: "1. Leg Press", sets: 4, targetReps: 10, target: "8-10 reps", rest: 180 },
+      { name: "2. Chest Press", sets: 4, targetReps: 10, target: "8-10 reps", rest: 180 },
+      { name: "3. Lat Machine Avanti", sets: 4, targetReps: 10, target: "8-10 reps", rest: 120 },
+      { name: "4. Leg Curl", sets: 3, targetReps: 10, target: "8-10 reps", rest: 120 },
+      { name: "5. Pulley Basso", sets: 3, targetReps: 10, target: "8-10 reps", rest: 90 },
+      { name: "6. Lento Avanti", sets: 3, targetReps: 10, target: "8-10 reps", rest: 120 },
+      { name: "7. Alzate Laterali (Opz.)", sets: 3, targetReps: 15, target: "12-15 reps", rest: 60 },
+      { name: "8. Superset Bicipiti/Tricipiti", sets: 3, targetReps: 12, target: "10-12 reps", rest: 60 }
+    ];
+
+    let timerInterval = null, workoutTimerInterval = null;
+    let timerEndTime = 0, timeLeft = 0, elapsedSeconds = 0, workoutStarted = false;
+    let audioCtx = null;
+
+    function init() {
+      renderWorkout();
+    }
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function manualStartWorkout() {
+      initAudio();
+      if (!workoutStarted) {
+        startWorkoutTimer();
+      }
+    }
+
+    function startWorkoutTimer() {
+      if (workoutStarted) return;
+      workoutStarted = true;
+
+      const btn = document.getElementById('btn-start-workout');
+      if (btn) {
+        btn.innerText = '⏱️ In Corso...';
+        btn.style.opacity = '0.6';
+      }
+
+      workoutTimerInterval = setInterval(() => {
+        elapsedSeconds++;
+        const m = Math.floor(elapsedSeconds / 60).toString().padStart(2, '0');
+        const s = (elapsedSeconds % 60).toString().padStart(2, '0');
+        document.getElementById('workout-elapsed').innerText = `${m}:${s}`;
+      }, 1000);
+    }
+
+    function toggleTheme() {
+      document.body.classList.toggle('light-mode');
+    }
+
+    function renderWorkout() {
+      const container = document.getElementById('workout-container');
+      container.innerHTML = '';
+
+      exercises.forEach((ex, exIdx) => {
+        const lastWeight = localStorage.getItem(`ex_${exIdx}_last_weight`) || '—';
+        const notes = localStorage.getItem(`ex_${exIdx}_notes`) || '';
+        const shouldProgress = localStorage.getItem(`ex_${exIdx}_progress`) === 'true';
+
+        const card = document.createElement('div');
+        card.className = 'ex-card';
+        card.innerHTML = `
+          <div class="ex-header">
+            <span class="ex-title">${ex.name}</span>
+            <span class="ex-target">${ex.sets}x${ex.target}</span>
+          </div>
+          <div class="ex-sub">
+            <span>Ultimo: <strong>${lastWeight} kg</strong> ${shouldProgress ? '<span class="badge-prog">🔥 +Peso consigliato</span>' : ''}</span>
+            <button class="tool-btn" style="font-size:0.7rem; padding: 2px 8px;" onclick="openPlateCalc(${exIdx})">⚖️ Dischi</button>
+          </div>
+        `;
+
+        for (let s = 1; s <= ex.sets; s++) {
+          const key = `ex_${exIdx}_set_${s}`;
+          const savedData = JSON.parse(localStorage.getItem(key) || '{"kg":"","reps":"","done":false}');
+
+          const row = document.createElement('div');
+          row.className = 'set-row';
+          row.innerHTML = `
+            <span class="set-num">S${s}</span>
+            <input type="number" id="input_kg_${exIdx}_${s}" placeholder="kg" value="${savedData.kg}" onchange="saveSet(${exIdx}, ${s}, 'kg', this.value)">
+            <input type="number" placeholder="reps" value="${savedData.reps}" onchange="saveSet(${exIdx}, ${s}, 'reps', this.value)">
+            <button class="btn-check ${savedData.done ? 'done' : ''}" onclick="toggleDone(${exIdx}, ${s}, ${ex.rest}, this)">
+              ${savedData.done ? '✓ Fatto' : 'Completa'}
+            </button>
+          `;
+          card.appendChild(row);
+        }
+
+        const noteRow = document.createElement('div');
+        noteRow.innerHTML = `<input type="text" class="notes-input" placeholder="Note (regolazioni macchinario...)" value="${notes}" onchange="saveNotes(${exIdx}, this.value)">`;
+        card.appendChild(noteRow);
+
+        container.appendChild(card);
+      });
+    }
+
+    function saveSet(exIdx, setNum, field, val) {
+      const key = `ex_${exIdx}_set_${setNum}`;
+      const savedData = JSON.parse(localStorage.getItem(key) || '{"kg":"","reps":"","done":false}');
+      savedData[field] = val;
+      localStorage.setItem(key, JSON.stringify(savedData));
+    }
+
+    function saveNotes(exIdx, val) { localStorage.setItem(`ex_${exIdx}_notes`, val); }
+
+    function toggleDone(exIdx, setNum, restTime, btn) {
+      initAudio();
+      startWorkoutTimer();
+
+      const key = `ex_${exIdx}_set_${setNum}`;
+      const savedData = JSON.parse(localStorage.getItem(key) || '{"kg":"","reps":"","done":false}');
+      savedData.done = !savedData.done;
+      localStorage.setItem(key, JSON.stringify(savedData));
+
+      if (savedData.done) {
+        btn.classList.add('done');
+        btn.innerText = '✓ Fatto';
+        startVisualTimer(restTime);
+      } else {
+        btn.classList.remove('done');
+        btn.innerText = 'Completa';
+        stopTimer();
+      }
+    }
+
+    function openPlateCalc(exIdx) {
+      const set1 = JSON.parse(localStorage.getItem(`ex_${exIdx}_set_1`) || '{}');
+      const targetKg = parseFloat(set1.kg) || 0;
+      if (targetKg <= 0) { alert("Inserisci prima il peso nella prima serie!"); return; }
+
+      let sideWeight = targetKg / 2;
+      const plates = [20, 10, 5, 2.5, 1.25];
+      let res = [];
+
+      plates.forEach(p => {
+        const count = Math.floor(sideWeight / p);
+        if (count > 0) {
+          res.push(`${count}x${p}kg`);
+          sideWeight -= count * p;
+        }
+      });
+
+      document.getElementById('plate-results').innerText = res.length > 0 ? res.join(' + ') : 'Carico minimo';
+      document.getElementById('plate-modal').style.display = 'flex';
+    }
+
+    function closeModal() { document.getElementById('plate-modal').style.display = 'none'; }
+
+    function startVisualTimer(seconds) {
+      clearInterval(timerInterval);
+      timerEndTime = Date.now() + (seconds * 1000);
+      timeLeft = seconds;
+      document.getElementById('timer-bar').style.display = 'flex';
+      updateTimerDisplay();
+
+      timerInterval = setInterval(() => {
+        checkTimer();
+      }, 1000);
+    }
+
+    function checkTimer() {
+      const now = Date.now();
+      const diff = Math.ceil((timerEndTime - now) / 1000);
+
+      if (diff <= 0) {
+        playAlarm();
+        stopTimer();
+      } else {
+        timeLeft = diff;
+        updateTimerDisplay();
+      }
+    }
+
+    function playAlarm() {
+      // Vibrazione
+      if (navigator.vibrate) {
+        navigator.vibrate([300, 150, 300, 150, 600]);
+      }
+      // Suono acustico via hardware
+      try {
+        if (audioCtx) {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = 880;
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          setTimeout(() => { osc.stop(); }, 1200);
+        }
+      } catch (e) {}
+    }
+
+    function updateTimerDisplay() {
+      const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+      const s = (timeLeft % 60).toString().padStart(2, '0');
+      document.getElementById('timer-display').innerText = `${m}:${s}`;
+    }
+
+    function addTime(secs) { 
+      timerEndTime += (secs * 1000); 
+      checkTimer(); 
+    }
+
+    function stopTimer() { 
+      clearInterval(timerInterval); 
+      timerEndTime = 0;
+      document.getElementById('timer-bar').style.display = 'none'; 
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && timerEndTime > 0) {
+        checkTimer();
+      }
+    });
+
+    async function requestWakeLock() {
+      try { 
+        if ('wakeLock' in navigator) {
+          await navigator.wakeLock.request('screen');
+          alert("Schermo sempre attivo abilitato!");
+        } 
+      } catch (err) {}
+    }
+
+    function finishWorkout() {
+      if (!confirm("Confermi di voler concludere l'allenamento e salvare i progressi?")) return;
+
+      exercises.forEach((ex, exIdx) => {
+        let allMaxRepsCompleted = true;
+        let lastKg = '';
+
+        for (let s = 1; s <= ex.sets; s++) {
+          const savedData = JSON.parse(localStorage.getItem(`ex_${exIdx}_set_${s}`) || '{}');
+          if (savedData.kg) lastKg = savedData.kg;
+          if (parseInt(savedData.reps) < ex.targetReps || !savedData.done) {
+            allMaxRepsCompleted = false;
+          }
+        }
+
+        if (lastKg) localStorage.setItem(`ex_${exIdx}_last_weight`, lastKg);
+        localStorage.setItem(`ex_${exIdx}_progress`, allMaxRepsCompleted ? 'true' : 'false');
+
+        for (let s = 1; s <= ex.sets; s++) {
+          const key = `ex_${exIdx}_set_${s}`;
+          const savedData = JSON.parse(localStorage.getItem(key) || '{"kg":"","reps":"","done":false}');
+          savedData.done = false;
+          localStorage.setItem(key, JSON.stringify(savedData));
+        }
+      });
+
+      clearInterval(workoutTimerInterval);
+      workoutStarted = false;
+      elapsedSeconds = 0;
+      document.getElementById('workout-elapsed').innerText = '00:00';
+
+      const btn = document.getElementById('btn-start-workout');
+      if (btn) {
+        btn.innerText = '▶️ Avvia Allenamento';
+        btn.style.opacity = '1';
+      }
+
+      renderWorkout();
+      alert("Sessione completata e salvata!");
+    }
+
+    function exportData() {
+      const blob = new Blob([JSON.stringify(localStorage)], {type: 'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `backup_scheda_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+    }
+
+    function importData() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.onchange = e => {
+        const reader = new FileReader();
+        reader.onload = event => {
+          const data = JSON.parse(event.target.result);
+          Object.keys(data).forEach(k => localStorage.setItem(k, data[k]));
+          renderWorkout();
+        };
+        reader.readAsText(e.target.files[0]);
+      };
+      input.click();
+    }
+
+    init();
+  </script>
+</body>
+</html>
