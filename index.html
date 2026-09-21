@@ -124,23 +124,12 @@
 
     let timerInterval = null, workoutTimerInterval = null;
     let timerEndTime = 0, timeLeft = 0, elapsedSeconds = 0, workoutStarted = false;
-    let audioCtx = null;
 
     function init() {
       renderWorkout();
     }
 
-    function initAudio() {
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-    }
-
     function manualStartWorkout() {
-      initAudio();
       if (!workoutStarted) {
         startWorkoutTimer();
       }
@@ -224,8 +213,17 @@
 
     function saveNotes(exIdx, val) { localStorage.setItem(`ex_${exIdx}_notes`, val); }
 
+    function openPhoneTimer(seconds) {
+      // Intent nativo per l'app Orologio Android / Pixel
+      try {
+        const intentUrl = `intent:#Intent;action=android.intent.action.SET_TIMER;i.EXTRA_LENGTH=${seconds};S.EXTRA_MESSAGE=Recupero%20Palestra;b.EXTRA_SKIP_UI=false;end`;
+        window.location.href = intentUrl;
+      } catch (err) {
+        console.log("Errore apertura intent:", err);
+      }
+    }
+
     function toggleDone(exIdx, setNum, restTime, btn) {
-      initAudio();
       startWorkoutTimer();
 
       const key = `ex_${exIdx}_set_${setNum}`;
@@ -236,6 +234,11 @@
       if (savedData.done) {
         btn.classList.add('done');
         btn.innerText = '✓ Fatto';
+        
+        // 1. Apri l'app Orologio nativa del telefono
+        openPhoneTimer(restTime);
+        
+        // 2. Avvia anche il timer di riserva in-page
         startVisualTimer(restTime);
       } else {
         btn.classList.remove('done');
@@ -284,32 +287,11 @@
       const diff = Math.ceil((timerEndTime - now) / 1000);
 
       if (diff <= 0) {
-        playAlarm();
         stopTimer();
       } else {
         timeLeft = diff;
         updateTimerDisplay();
       }
-    }
-
-    function playAlarm() {
-      // Vibrazione
-      if (navigator.vibrate) {
-        navigator.vibrate([300, 150, 300, 150, 600]);
-      }
-      // Suono acustico via hardware
-      try {
-        if (audioCtx) {
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.type = 'sine';
-          osc.frequency.value = 880;
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
-          osc.start();
-          setTimeout(() => { osc.stop(); }, 1200);
-        }
-      } catch (e) {}
     }
 
     function updateTimerDisplay() {
@@ -328,12 +310,6 @@
       timerEndTime = 0;
       document.getElementById('timer-bar').style.display = 'none'; 
     }
-
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && timerEndTime > 0) {
-        checkTimer();
-      }
-    });
 
     async function requestWakeLock() {
       try { 
