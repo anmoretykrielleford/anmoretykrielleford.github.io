@@ -122,29 +122,40 @@
       { name: "8. Superset Bicipiti/Tricipiti", sets: 3, targetReps: 12, target: "10-12 reps", rest: 60 }
     ];
 
-    let timerInterval = null, workoutTimerInterval = null;
+    let swRegistration = null;
+    let bgWorker = null;
     let timerEndTime = 0, timeLeft = 0, elapsedSeconds = 0, workoutStarted = false;
+    let workoutTimerInterval = null;
 
+    // Inizializza Service Worker e Permessi Notifiche
     function init() {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').then(reg => {
+          swRegistration = reg;
+        }).catch(err => console.log("SW Reg Error:", err));
+      }
       renderWorkout();
     }
 
-    function manualStartWorkout() {
-      if (!workoutStarted) {
-        startWorkoutTimer();
+    function requestNotificationPermission() {
+      if ('Notification' in window && Notification.permission !== 'granted') {
+        Notification.requestPermission();
       }
+    }
+
+    function manualStartWorkout() {
+      requestNotificationPermission();
+      if (!workoutStarted) startWorkoutTimer();
     }
 
     function startWorkoutTimer() {
       if (workoutStarted) return;
       workoutStarted = true;
-
       const btn = document.getElementById('btn-start-workout');
       if (btn) {
         btn.innerText = '⏱️ In Corso...';
         btn.style.opacity = '0.6';
       }
-
       workoutTimerInterval = setInterval(() => {
         elapsedSeconds++;
         const m = Math.floor(elapsedSeconds / 60).toString().padStart(2, '0');
@@ -153,9 +164,7 @@
       }, 1000);
     }
 
-    function toggleTheme() {
-      document.body.classList.toggle('light-mode');
-    }
+    function toggleTheme() { document.body.classList.toggle('light-mode'); }
 
     function renderWorkout() {
       const container = document.getElementById('workout-container');
@@ -183,18 +192,15 @@
           const key = `ex_${exIdx}_set_${s}`;
           const savedData = JSON.parse(localStorage.getItem(key) || '{"kg":"","reps":"","done":false}');
 
-          // Intent specifico per Google Orologio (com.google.android.deskclock) su Pixel
-          const intentUrl = `intent:#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=${ex.rest};S.android.intent.extra.alarm.MESSAGE=Recupero%20Palestra;b.android.intent.extra.alarm.SKIP_UI=false;package=com.google.android.deskclock;end`;
-
           const row = document.createElement('div');
           row.className = 'set-row';
           row.innerHTML = `
             <span class="set-num">S${s}</span>
             <input type="number" id="input_kg_${exIdx}_${s}" placeholder="kg" value="${savedData.kg}" onchange="saveSet(${exIdx}, ${s}, 'kg', this.value)">
             <input type="number" placeholder="reps" value="${savedData.reps}" onchange="saveSet(${exIdx}, ${s}, 'reps', this.value)">
-            <a href="${intentUrl}" id="btn_check_${exIdx}_${s}" class="btn-check ${savedData.done ? 'done' : ''}" onclick="handleCheckClick(event, ${exIdx}, ${s}, ${ex.rest})">
+            <button id="btn_check_${exIdx}_${s}" class="btn-check ${savedData.done ? 'done' : ''}" onclick="handleCheckClick(${exIdx}, ${s}, ${ex.rest})">
               ${savedData.done ? '✓ Fatto' : 'Completa'}
-            </a>
+            </button>
           `;
           card.appendChild(row);
         }
@@ -216,17 +222,16 @@
 
     function saveNotes(exIdx, val) { localStorage.setItem(`ex_${exIdx}_notes`, val); }
 
-    function handleCheckClick(event, exIdx, setNum, restTime) {
+    function handleCheckClick(exIdx, setNum, restTime) {
+      requestNotificationPermission();
       startWorkoutTimer();
 
       const key = `ex_${exIdx}_set_${setNum}`;
       const savedData = JSON.parse(localStorage.getItem(key) || '{"kg":"","reps":"","done":false}');
 
       if (savedData.done) {
-        event.preventDefault();
         savedData.done = false;
         localStorage.setItem(key, JSON.stringify(savedData));
-        
         const btn = document.getElementById(`btn_check_${exIdx}_${setNum}`);
         if (btn) {
           btn.classList.remove('done');
@@ -236,15 +241,118 @@
       } else {
         savedData.done = true;
         localStorage.setItem(key, JSON.stringify(savedData));
-        
         startVisualTimer(restTime);
-
         const btn = document.getElementById(`btn_check_${exIdx}_${setNum}`);
         if (btn) {
           btn.classList.add('done');
           btn.innerText = '✓ Fatto';
         }
       }
+    }
+
+    // Gestione Timer e Web Worker per evitare il congelamento in background
+    function startVisualTimer(seconds) {
+      stopTimer();
+      timerEndTime = Date.now() + (seconds * 1000);
+      timeLeft = seconds;
+      document.getElementById('timer-bar').style.display = 'flex';
+      updateTimerDisplay();
+
+      // Crea un Web Worker in-memory che non soffre del throttling del browser quando si cambia app
+      const workerCode = `
+        let targetTime = null;
+        self.onmessage = function(e) {
+          if (e.data.action === 'start') {
+            targetTime = e.data.targetTime;
+            check();
+          } else if (e.data.action === 'stop') {
+            targetTime = null;
+          }
+        };
+        function check() {
+          if (!targetTime) return;
+          const remaining = Math.ceil((targetTime - Date.now()) / 1000);
+          self.postMessage({ remaining: remaining });
+          if (remaining > 0) {
+            setTimeout(check, 1000);
+          }
+        }
+      `;
+      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      bgWorker = new Worker(URL.createObjectURL(blob));
+
+      bgWorker.onmessage = function(e) {
+        const remaining = e.data.remaining;
+        if (remaining <= 0) {
+          triggerNotification();
+          stopTimer();
+        } else {
+          timeLeft = remaining;
+          updateTimerDisplay();
+        }
+      };
+
+      bgWorker.postMessage({ action: 'start', targetTime: timerEndTime });
+    }
+
+    function triggerNotification() {
+      // Vibrazione e suono locale se l'app è aperta
+      if ('vibrate' in navigator) navigator.vibrate([400, 200, 400, 200, 400]);
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        gain.gain.setValueAtTime(1, audioCtx.currentTime);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 1.2);
+      } catch(e) {}
+
+      // Notifica Push di Sistema (visibile anche in background)
+      if (swRegistration && Notification.permission === 'granted') {
+        swRegistration.showNotification("⏱️ Recupero Terminato!", {
+          body: "Tempo scaduto, è ora di iniziare la serie successiva!",
+          icon: "https://cdn-icons-png.flaticon.com/512/1216/1216895.png",
+          vibrate: [400, 200, 400, 200, 400],
+          tag: "workout-timer",
+          renotify: true
+        });
+      }
+    }
+
+    function updateTimerDisplay() {
+      const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+      const s = (timeLeft % 60).toString().padStart(2, '0');
+      document.getElementById('timer-display').innerText = `${m}:${s}`;
+    }
+
+    function addTime(secs) { 
+      timerEndTime += (secs * 1000); 
+      if (bgWorker) {
+        bgWorker.postMessage({ action: 'start', targetTime: timerEndTime });
+      }
+    }
+
+    function stopTimer() { 
+      if (bgWorker) {
+        bgWorker.postMessage({ action: 'stop' });
+        bgWorker.terminate();
+        bgWorker = null;
+      }
+      timerEndTime = 0;
+      document.getElementById('timer-bar').style.display = 'none'; 
+    }
+
+    async function requestWakeLock() {
+      try { 
+        if ('wakeLock' in navigator) {
+          await navigator.wakeLock.request('screen');
+          alert("Schermo sempre attivo abilitato!");
+        } 
+      } catch (err) {}
     }
 
     function openPlateCalc(exIdx) {
@@ -269,76 +377,6 @@
     }
 
     function closeModal() { document.getElementById('plate-modal').style.display = 'none'; }
-
-    function startVisualTimer(seconds) {
-      clearInterval(timerInterval);
-      timerEndTime = Date.now() + (seconds * 1000);
-      timeLeft = seconds;
-      document.getElementById('timer-bar').style.display = 'flex';
-      updateTimerDisplay();
-
-      timerInterval = setInterval(() => {
-        checkTimer();
-      }, 1000);
-    }
-
-    function checkTimer() {
-      const now = Date.now();
-      const diff = Math.ceil((timerEndTime - now) / 1000);
-
-      if (diff <= 0) {
-        notifyEnd();
-        stopTimer();
-      } else {
-        timeLeft = diff;
-        updateTimerDisplay();
-      }
-    }
-
-    function notifyEnd() {
-      try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-        gain.gain.setValueAtTime(1, audioCtx.currentTime);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 1.2);
-      } catch(e) {}
-
-      if ('vibrate' in navigator) {
-        navigator.vibrate([400, 200, 400, 200, 400]);
-      }
-    }
-
-    function updateTimerDisplay() {
-      const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
-      const s = (timeLeft % 60).toString().padStart(2, '0');
-      document.getElementById('timer-display').innerText = `${m}:${s}`;
-    }
-
-    function addTime(secs) { 
-      timerEndTime += (secs * 1000); 
-      checkTimer(); 
-    }
-
-    function stopTimer() { 
-      clearInterval(timerInterval); 
-      timerEndTime = 0;
-      document.getElementById('timer-bar').style.display = 'none'; 
-    }
-
-    async function requestWakeLock() {
-      try { 
-        if ('wakeLock' in navigator) {
-          await navigator.wakeLock.request('screen');
-          alert("Schermo sempre attivo abilitato!");
-        } 
-      } catch (err) {}
-    }
 
     function finishWorkout() {
       if (!confirm("Confermi di voler concludere l'allenamento e salvare i progressi?")) return;
