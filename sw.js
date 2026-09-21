@@ -8,31 +8,48 @@ self.addEventListener('activate', (event) => {
 });
 
 let timerId = null;
+let timerResolver = null;
 
 self.addEventListener('message', (event) => {
   if (!event.data) return;
 
   if (event.data.action === 'START_TIMER') {
     if (timerId) clearTimeout(timerId);
+    if (timerResolver) {
+      timerResolver();
+      timerResolver = null;
+    }
 
     const delayMs = event.data.seconds * 1000;
 
-    timerId = setTimeout(() => {
-      self.registration.showNotification("⏱️ Recupero Terminato!", {
-        body: "Tempo scaduto, è ora di iniziare la serie successiva!",
-        icon: "https://cdn-icons-png.flaticon.com/512/1216/1216895.png",
-        vibrate: [500, 250, 500, 250, 500],
-        tag: "workout-timer",
-        renotify: true,
-        requireInteraction: true
-      }).catch(err => console.error("Errore notifica SW:", err));
-      timerId = null;
-    }, delayMs);
+    const timerPromise = new Promise((resolve) => {
+      timerResolver = resolve;
+      timerId = setTimeout(() => {
+        self.registration.showNotification("⏱️ Recupero Terminato!", {
+          body: "Tempo scaduto, è ora di iniziare la serie successiva!",
+          icon: "https://cdn-icons-png.flaticon.com/512/1216/1216895.png",
+          vibrate: [500, 250, 500, 250, 500],
+          tag: "workout-timer",
+          renotify: true,
+          requireInteraction: true
+        }).catch(err => console.error("Errore notifica SW:", err));
+
+        timerId = null;
+        timerResolver = null;
+        resolve();
+      }, delayMs);
+    });
+
+    event.waitUntil(timerPromise);
   } 
   else if (event.data.action === 'STOP_TIMER') {
     if (timerId) {
       clearTimeout(timerId);
       timerId = null;
+    }
+    if (timerResolver) {
+      timerResolver();
+      timerResolver = null;
     }
   }
 });

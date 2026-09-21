@@ -283,9 +283,26 @@
       }, 1000);
     }
 
+    function playTimerBeep() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.2);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 1.2);
+      } catch(e) {}
+    }
+
     function updateRemainingFromEndTime() {
       const diff = Math.ceil((timerEndTime - Date.now()) / 1000);
       if (diff <= 0) {
+        playTimerBeep();
         if ('vibrate' in navigator) {
           try { navigator.vibrate([500, 250, 500, 250, 500]); } catch(e) {}
         }
