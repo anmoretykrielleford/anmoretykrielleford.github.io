@@ -264,15 +264,15 @@
       document.getElementById('timer-bar').style.display = 'flex';
       updateTimerDisplay();
 
-      // Manda il comando al Service Worker in background per gestire la notifica
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          action: 'START_TIMER',
-          seconds: seconds
+      // Invia il messaggio in modo sicuro attendendo che il Service Worker sia pronto
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(reg => {
+          if (reg.active) {
+            reg.active.postMessage({ action: 'START_TIMER', seconds: seconds });
+          }
         });
       }
 
-      // Timer visuale a schermo
       timerUiInterval = setInterval(() => {
         updateRemainingFromEndTime();
       }, 1000);
@@ -297,10 +297,11 @@
     function addTime(secs) { 
       timerEndTime += (secs * 1000); 
       const newRemaining = Math.ceil((timerEndTime - Date.now()) / 1000);
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          action: 'START_TIMER',
-          seconds: newRemaining
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(reg => {
+          if (reg.active) {
+            reg.active.postMessage({ action: 'START_TIMER', seconds: newRemaining });
+          }
         });
       }
       updateRemainingFromEndTime();
@@ -308,8 +309,12 @@
 
     function stopTimer() { 
       clearInterval(timerUiInterval);
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ action: 'STOP_TIMER' });
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(reg => {
+          if (reg.active) {
+            reg.active.postMessage({ action: 'STOP_TIMER' });
+          }
+        });
       }
       timerEndTime = 0;
       document.getElementById('timer-bar').style.display = 'none'; 

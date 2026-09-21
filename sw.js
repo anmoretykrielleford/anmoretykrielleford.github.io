@@ -1,11 +1,18 @@
-// sw.js - Service Worker con gestione timer e notifiche in background
+// sw.js - Service Worker con attivazione immediata e notifiche
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim());
+});
+
 let timerId = null;
 
 self.addEventListener('message', (event) => {
   if (!event.data) return;
 
   if (event.data.action === 'START_TIMER') {
-    // Cancella eventuali timer precedenti
     if (timerId) clearTimeout(timerId);
 
     const delayMs = event.data.seconds * 1000;
@@ -14,7 +21,7 @@ self.addEventListener('message', (event) => {
       self.registration.showNotification("⏱️ Recupero Terminato!", {
         body: "Tempo scaduto, è ora di iniziare la serie successiva!",
         icon: "https://cdn-icons-png.flaticon.com/512/1216/1216895.png",
-        vibrate: [500, 250, 500, 250, 500], // Vibrazione nativa gestita da Android
+        vibrate: [500, 250, 500, 250, 500],
         tag: "workout-timer",
         renotify: true,
         requireInteraction: true
