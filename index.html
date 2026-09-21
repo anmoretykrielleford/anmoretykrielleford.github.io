@@ -183,8 +183,8 @@
           const key = `ex_${exIdx}_set_${s}`;
           const savedData = JSON.parse(localStorage.getItem(key) || '{"kg":"","reps":"","done":false}');
 
-          // Link diretto Intent per l'app Orologio Android
-          const intentUrl = `intent:#Intent;action=android.intent.action.SET_TIMER;i.EXTRA_LENGTH=${ex.rest};S.EXTRA_MESSAGE=Recupero%20Palestra;b.EXTRA_SKIP_UI=false;end`;
+          // Sintassi Intent Android con nomi di sistema ufficiali
+          const intentUrl = `intent:#Intent;action=android.intent.action.SET_TIMER;i.android.intent.extra.alarm.LENGTH=${ex.rest};S.android.intent.extra.alarm.MESSAGE=Recupero%20Palestra;b.android.intent.extra.alarm.SKIP_UI=false;end`;
 
           const row = document.createElement('div');
           row.className = 'set-row';
@@ -223,7 +223,6 @@
       const savedData = JSON.parse(localStorage.getItem(key) || '{"kg":"","reps":"","done":false}');
 
       if (savedData.done) {
-        // Se era già fatta e ci riclicchi, blocchiamo l'apertura dell'Orologio
         event.preventDefault();
         savedData.done = false;
         localStorage.setItem(key, JSON.stringify(savedData));
@@ -235,7 +234,6 @@
         }
         stopTimer();
       } else {
-        // Se non era fatta, la segniamo fatta e LASCIAMO APRIRE l'app Orologio via href nativo
         savedData.done = true;
         localStorage.setItem(key, JSON.stringify(savedData));
         
@@ -289,10 +287,30 @@
       const diff = Math.ceil((timerEndTime - now) / 1000);
 
       if (diff <= 0) {
+        notifyEnd();
         stopTimer();
       } else {
         timeLeft = diff;
         updateTimerDisplay();
+      }
+    }
+
+    function notifyEnd() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        gain.gain.setValueAtTime(1, audioCtx.currentTime);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 1.2);
+      } catch(e) {}
+
+      if ('vibrate' in navigator) {
+        navigator.vibrate([400, 200, 400, 200, 400]);
       }
     }
 
