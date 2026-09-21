@@ -123,23 +123,30 @@
     ];
 
     let swRegistration = null;
-    let bgWorker = null;
+    let timerUiInterval = null;
     let timerEndTime = 0, timeLeft = 0, elapsedSeconds = 0, workoutStarted = false;
     let workoutTimerInterval = null;
 
-    // Inizializza Service Worker e Permessi Notifiche
     function init() {
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js').then(reg => {
           swRegistration = reg;
         }).catch(err => console.log("SW Reg Error:", err));
       }
+
+      // Aggiorna la grafica se l'utente torna sull'app dopo che è stata in background
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && timerEndTime > 0) {
+          updateRemainingFromEndTime();
+        }
+      });
+
       renderWorkout();
     }
 
     function requestNotificationPermission() {
       if ('Notification' in window && Notification.permission !== 'granted') {
-        Notification.requestPermission();
+        Notification.permission !== 'denied' && Notification.requestPermission();
       }
     }
 
@@ -250,7 +257,6 @@
       }
     }
 
-    // Gestione Timer e Web Worker per evitare il congelamento in background
     function startVisualTimer(seconds) {
       stopTimer();
       timerEndTime = Date.now() + (seconds * 1000);
@@ -258,68 +264,27 @@
       document.getElementById('timer-bar').style.display = 'flex';
       updateTimerDisplay();
 
-      // Crea un Web Worker in-memory che non soffre del throttling del browser quando si cambia app
-      const workerCode = `
-        let targetTime = null;
-        self.onmessage = function(e) {
-          if (e.data.action === 'start') {
-            targetTime = e.data.targetTime;
-            check();
-          } else if (e.data.action === 'stop') {
-            targetTime = null;
-          }
-        };
-        function check() {
-          if (!targetTime) return;
-          const remaining = Math.ceil((targetTime - Date.now()) / 1000);
-          self.postMessage({ remaining: remaining });
-          if (remaining > 0) {
-            setTimeout(check, 1000);
-          }
-        }
-      `;
-      const blob = new Blob([workerCode], { type: 'application/javascript' });
-      bgWorker = new Worker(URL.createObjectURL(blob));
+      // Manda il comando al Service Worker in background per gestire la notifica
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          action: 'START_TIMER',
+          seconds: seconds
+        });
+      }
 
-      bgWorker.onmessage = function(e) {
-        const remaining = e.data.remaining;
-        if (remaining <= 0) {
-          triggerNotification();
-          stopTimer();
-        } else {
-          timeLeft = remaining;
-          updateTimerDisplay();
-        }
-      };
-
-      bgWorker.postMessage({ action: 'start', targetTime: timerEndTime });
+      // Timer visuale a schermo
+      timerUiInterval = setInterval(() => {
+        updateRemainingFromEndTime();
+      }, 1000);
     }
 
-    function triggerNotification() {
-      // Vibrazione e suono locale se l'app è aperta
-      if ('vibrate' in navigator) navigator.vibrate([400, 200, 400, 200, 400]);
-      try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-        gain.gain.setValueAtTime(1, audioCtx.currentTime);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 1.2);
-      } catch(e) {}
-
-      // Notifica Push di Sistema (visibile anche in background)
-      if (swRegistration && Notification.permission === 'granted') {
-        swRegistration.showNotification("⏱️ Recupero Terminato!", {
-          body: "Tempo scaduto, è ora di iniziare la serie successiva!",
-          icon: "https://cdn-icons-png.flaticon.com/512/1216/1216895.png",
-          vibrate: [400, 200, 400, 200, 400],
-          tag: "workout-timer",
-          renotify: true
-        });
+    function updateRemainingFromEndTime() {
+      const diff = Math.ceil((timerEndTime - Date.now()) / 1000);
+      if (diff <= 0) {
+        stopTimer();
+      } else {
+        timeLeft = diff;
+        updateTimerDisplay();
       }
     }
 
@@ -331,16 +296,20 @@
 
     function addTime(secs) { 
       timerEndTime += (secs * 1000); 
-      if (bgWorker) {
-        bgWorker.postMessage({ action: 'start', targetTime: timerEndTime });
+      const newRemaining = Math.ceil((timerEndTime - Date.now()) / 1000);
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          action: 'START_TIMER',
+          seconds: newRemaining
+        });
       }
+      updateRemainingFromEndTime();
     }
 
     function stopTimer() { 
-      if (bgWorker) {
-        bgWorker.postMessage({ action: 'stop' });
-        bgWorker.terminate();
-        bgWorker = null;
+      clearInterval(timerUiInterval);
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ action: 'STOP_TIMER' });
       }
       timerEndTime = 0;
       document.getElementById('timer-bar').style.display = 'none'; 
